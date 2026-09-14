@@ -714,16 +714,18 @@ cargarAdicionalIndex();
     if (!watermark) return;
     watermark.innerHTML = "";
 
-    if (!imagenes.length) return;
+    // Si el versículo aún no tiene ninguna imagen cargada, se usa el fondo
+    // genérico de siempre en vez de dejar el hero sin imagen de fondo.
+    const lista = imagenes.length ? imagenes : ["images/fondo-cabezote.png"];
 
-    imagenes.forEach((url, i) => {
+    lista.forEach((url, i) => {
       const capa = document.createElement("div");
       capa.className = "capa-fondo" + (i === 0 ? " activa" : "");
       capa.style.backgroundImage = `url("${url.replace(/"/g, '\\"')}")`;
       watermark.appendChild(capa);
     });
 
-    if (imagenes.length < 2) return;
+    if (lista.length < 2) return;
 
     let indice = 0;
     setInterval(() => {
