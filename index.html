@@ -16,6 +16,24 @@
 </nav>
 </header>
 
+<section class="anuncios-riel" aria-label="Anuncios">
+<div class="riel-viewport"><div class="riel-track" id="rielAnunciosTrack"><p class="riel-cargando">Cargando anuncios...</p></div></div>
+<button class="riel-flecha riel-prev" onclick="rielMover(-1)" aria-label="Anuncio anterior">‹</button>
+<button class="riel-flecha riel-next" onclick="rielMover(1)" aria-label="Siguiente anuncio">›</button>
+</section>
+
+<div id="modalAnuncio" class="modal-anuncio oculto" onclick="if(event.target===this)cerrarModalAnuncio()">
+<div class="modal-anuncio-contenido">
+<button class="modal-cerrar" onclick="cerrarModalAnuncio()">✕</button>
+<img id="modalAnuncioImagen" alt="">
+<div class="modal-texto">
+<small id="modalAnuncioFecha"></small>
+<h3 id="modalAnuncioTitulo"></h3>
+<p id="modalAnuncioDescripcion"></p>
+</div>
+</div>
+</div>
+
 <main id="inicio">
 <section class="hero"><div class="hero-watermark" aria-hidden="true"></div><div class="hero-copy">
 <small>MINISTERIO DE ALABANZA FILADELFIA CENTRAL</small>
@@ -654,9 +672,12 @@ cargarAdicionalIndex();
 
 
 <script>
-/* VERSÍCULO DINÁMICO — Google Sheets, pestaña Versículo */
+/* VERSÍCULO DINÁMICO — conectado a la hoja "Versículo" del Panel de Administración */
 (() => {
-  const URL_VERSICULO = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTdym-CkyAemW9NWdSvNH4n8J8f3We0GXh_X03Jt8-JTVs_11tLUpCH-SQMtgeMQjaaLUremE3xBbuC/pub?gid=491952728&single=true&output=csv";
+  // Pestaña "Versículo" del Panel de Administración, publicada como CSV.
+  const URL_VERSICULO = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRgCDbPXxAAo1hNZG09m3gziQCap259U1hsgBvJgCd3xgZ5mxfb-HnaXufZsweBMCcdIVHsYsONF1pg/pub?gid=1405710703&single=true&output=csv";
+
+  const INTERVALO_FONDO_MS = 6000;
 
   function parseCSV(text) {
     const rows = [];
@@ -688,22 +709,56 @@ cargarAdicionalIndex();
     });
   }
 
+  function iniciarCarruselFondo(imagenes) {
+    const watermark = document.querySelector(".hero-watermark");
+    if (!watermark) return;
+    watermark.innerHTML = "";
+
+    if (!imagenes.length) return;
+
+    imagenes.forEach((url, i) => {
+      const capa = document.createElement("div");
+      capa.className = "capa-fondo" + (i === 0 ? " activa" : "");
+      capa.style.backgroundImage = `url("${url.replace(/"/g, '\\"')}")`;
+      watermark.appendChild(capa);
+    });
+
+    if (imagenes.length < 2) return;
+
+    let indice = 0;
+    setInterval(() => {
+      const capas = watermark.querySelectorAll(".capa-fondo");
+      capas[indice].classList.remove("activa");
+      indice = (indice + 1) % capas.length;
+      capas[indice].classList.add("activa");
+    }, INTERVALO_FONDO_MS);
+  }
+
   function aplicar(dato) {
     const hero = document.querySelector(".hero");
     const verso = document.querySelector(".hero-copy p");
     const cita = document.querySelector(".hero-copy strong");
-    const watermark = document.querySelector(".hero-watermark");
     if (!hero || !dato) return;
 
-    if (dato.verso) verso.textContent = "“" + dato.verso + "”";
-    if (dato.cita) cita.textContent = dato.cita;
+    // La columna "Versículo" del Panel guarda la referencia y el texto
+    // juntos, separados por un salto de línea (así se arma al elegirlo
+    // desde el buscador bíblico del Panel).
+    const contenido = dato["versículo"] || "";
+    const partes = contenido.split(/\r?\n/).filter(Boolean);
 
-    if (dato.fondo && watermark) {
-      watermark.style.backgroundImage = `url("${dato.fondo.replace(/"/g, '\"')}")`;
-      watermark.style.backgroundSize = "cover";
-      watermark.style.backgroundPosition = "center";
-      watermark.style.backgroundRepeat = "no-repeat";
+    if (partes.length > 1) {
+      cita.textContent = partes[0];
+      verso.textContent = "“" + partes.slice(1).join(" ") + "”";
+    } else if (partes.length === 1) {
+      cita.textContent = "";
+      verso.textContent = "“" + partes[0] + "”";
     }
+
+    const imagenes = [dato["imagen 1"], dato["imagen 2"], dato["imagen 3"]]
+      .map(v => (v || "").trim())
+      .filter(Boolean);
+
+    iniciarCarruselFondo(imagenes);
   }
 
   async function cargarVersiculo() {
@@ -711,6 +766,7 @@ cargarAdicionalIndex();
       const r = await fetch(URL_VERSICULO + "&_=" + Date.now(), {cache:"no-store"});
       if (!r.ok) throw new Error("No se pudo consultar la pestaña Versículo");
       const datos = parseCSV(await r.text());
+      // La hoja puede tener varias filas; se toma la más reciente (primera fila de datos).
       if (datos.length) aplicar(datos[0]);
     } catch(e) {
       console.error("Versículo dinámico:", e);
@@ -721,6 +777,142 @@ cargarAdicionalIndex();
     document.addEventListener("DOMContentLoaded", cargarVersiculo, {once:true});
   } else {
     cargarVersiculo();
+  }
+})();
+</script>
+
+<script>
+/* RIEL DE ANUNCIOS — conectado a la hoja "Anuncios E" del Panel de Administración */
+(() => {
+  // Pestaña "Anuncios E" del Panel de Administración, publicada como CSV.
+  const URL_ANUNCIOS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRgCDbPXxAAo1hNZG09m3gziQCap259U1hsgBvJgCd3xgZ5mxfb-HnaXufZsweBMCcdIVHsYsONF1pg/pub?gid=111809834&single=true&output=csv";
+
+  const INTERVALO_AUTOAVANCE_MS = 5000;
+  const track = document.getElementById("rielAnunciosTrack");
+
+  let anuncios = [];
+  let posicion = 0;
+  let temporizador = null;
+
+  function parseCSV(text) {
+    const rows = [];
+    let row = [], cell = "", quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (c === '"') {
+        if (quoted && text[i + 1] === '"') { cell += '"'; i++; }
+        else quoted = !quoted;
+      } else if (c === "," && !quoted) {
+        row.push(cell.trim()); cell = "";
+      } else if ((c === "\n" || c === "\r") && !quoted) {
+        if (c === "\r" && text[i + 1] === "\n") i++;
+        row.push(cell.trim());
+        if (row.some(v => v !== "")) rows.push(row);
+        row = []; cell = "";
+      } else cell += c;
+    }
+    if (cell !== "" || row.length) {
+      row.push(cell.trim());
+      if (row.some(v => v !== "")) rows.push(row);
+    }
+    if (rows.length < 2) return [];
+    const headers = rows.shift().map(v => v.replace(/^"|"$/g,"").trim().toLowerCase());
+    return rows.map(r => {
+      const o = {};
+      headers.forEach((h,i) => o[h] = (r[i] || "").replace(/^"|"$/g,"").trim());
+      return o;
+    });
+  }
+
+  function escaparHTML(texto) {
+    return String(texto || "")
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+  }
+
+  function renderRiel() {
+    if (!track) return;
+    if (!anuncios.length) {
+      track.innerHTML = '<p class="riel-vacio">No hay anuncios por el momento.</p>';
+      return;
+    }
+    track.innerHTML = "";
+    anuncios.forEach((a, i) => {
+      const card = document.createElement("div");
+      card.className = "riel-card";
+      if (a.imagen) card.style.backgroundImage = `url("${a.imagen.replace(/"/g,'\\"')}")`;
+      card.innerHTML =
+        '<span class="riel-vermas">Ver más</span>' +
+        '<div class="riel-texto"><small>' + escaparHTML(a.fecha) + '</small><h3>' + escaparHTML(a.titulo) + '</h3></div>';
+      card.onclick = () => abrirModalAnuncio(i);
+      track.appendChild(card);
+    });
+  }
+
+  function actualizarPosicion() {
+    if (!track || !anuncios.length) return;
+    const card = track.querySelector(".riel-card");
+    if (!card) return;
+    const ancho = card.offsetWidth + 14; // 14px = gap
+    track.style.transform = `translateX(-${posicion * ancho}px)`;
+  }
+
+  window.rielMover = function (direccion) {
+    if (!anuncios.length) return;
+    posicion = (posicion + direccion + anuncios.length) % anuncios.length;
+    actualizarPosicion();
+    reiniciarAutoAvance();
+  };
+
+  function reiniciarAutoAvance() {
+    if (temporizador) clearInterval(temporizador);
+    if (anuncios.length < 2) return;
+    temporizador = setInterval(() => window.rielMover(1), INTERVALO_AUTOAVANCE_MS);
+  }
+
+  window.abrirModalAnuncio = function (indice) {
+    const a = anuncios[indice];
+    if (!a) return;
+    const modal = document.getElementById("modalAnuncio");
+    const img = document.getElementById("modalAnuncioImagen");
+    if (a.imagen) { img.src = a.imagen; img.style.display = "block"; }
+    else { img.style.display = "none"; }
+    document.getElementById("modalAnuncioFecha").textContent = a.fecha || "";
+    document.getElementById("modalAnuncioTitulo").textContent = a.titulo || "";
+    document.getElementById("modalAnuncioDescripcion").textContent = a.descripcion || "";
+    modal.classList.remove("oculto");
+  };
+
+  window.cerrarModalAnuncio = function () {
+    document.getElementById("modalAnuncio").classList.add("oculto");
+  };
+
+  async function cargarAnuncios() {
+    try {
+      const r = await fetch(URL_ANUNCIOS + "&_=" + Date.now(), {cache:"no-store"});
+      if (!r.ok) throw new Error("No se pudo consultar la pestaña Anuncios E");
+      const datos = parseCSV(await r.text());
+      anuncios = datos.map(d => ({
+        fecha: d.fecha || "",
+        titulo: d["título"] || d.titulo || "",
+        descripcion: d["descripción"] || d.descripcion || "",
+        imagen: d.imagen || ""
+      })).filter(a => a.titulo);
+      renderRiel();
+      actualizarPosicion();
+      reiniciarAutoAvance();
+    } catch (e) {
+      console.error("Riel de anuncios:", e);
+      if (track) track.innerHTML = '<p class="riel-vacio">No se pudieron cargar los anuncios.</p>';
+    }
+  }
+
+  window.addEventListener("resize", actualizarPosicion);
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", cargarAnuncios, {once:true});
+  } else {
+    cargarAnuncios();
   }
 })();
 </script>
