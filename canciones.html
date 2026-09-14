@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canciones de Alabanza — Reproductor Retro</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&display=swap">
+<style>
+:root{
+  --verde:#39ff6a;
+  --ambar:#ffb020;
+  --rojo:#ff5050;
+  --metal1:#4a5568;
+  --metal2:#232733;
+  --metal3:#12141a;
+  --azul1:#2f6fc0;
+  --azul2:#123a68;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  padding:24px 14px 60px;
+  min-height:100vh;
+  background:
+    radial-gradient(circle at 50% 0%, #2a3040, #0b0d12 70%);
+  font-family:'VT323',monospace;
+  color:var(--verde);
+  display:flex;
+  justify-content:center;
+}
+.shell{width:100%;max-width:560px;display:flex;flex-direction:column;gap:14px}
+
+.win{
+  background:linear-gradient(180deg,var(--metal1),var(--metal2) 40%,var(--metal3));
+  border-radius:6px;
+  box-shadow:0 10px 30px #000a, inset 0 1px 0 #ffffff22, inset 0 -1px 0 #00000066;
+  overflow:hidden;
+}
+.win-title{
+  background:linear-gradient(90deg,var(--azul2),var(--azul1) 55%,var(--azul2));
+  color:#f2f6ff;
+  font-family:'Press Start 2P',monospace;
+  font-size:11px;
+  letter-spacing:.5px;
+  padding:8px 12px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  text-shadow:0 1px 0 #00000088;
+  border-bottom:1px solid #000;
+}
+.win-title .dots{display:flex;gap:5px}
+.win-title .dots span{width:9px;height:9px;border-radius:50%;background:#1a2a44;border:1px solid #0008;display:inline-block}
+.win-body{padding:14px}
+
+/* ===== LCD ===== */
+.lcd{
+  background:radial-gradient(circle at 50% 0%,#001b08,#000600 85%);
+  border:2px solid #000;
+  border-radius:4px;
+  box-shadow:inset 0 0 14px #000, inset 0 0 2px #39ff6a55;
+  padding:9px 11px;
+  margin-bottom:12px;
+}
+.lcd-row{display:flex;justify-content:space-between;font-size:16px;color:var(--ambar);margin-bottom:2px}
+.lcd-marquee{overflow:hidden;white-space:nowrap;height:26px;position:relative}
+.lcd-marquee span{
+  display:inline-block;
+  font-size:21px;
+  color:var(--verde);
+  text-shadow:0 0 6px #39ff6a99;
+  padding-left:2px;
+}
+.lcd-marquee.scroll span{animation:despl 12s linear infinite}
+@keyframes despl{
+  0%{transform:translateX(0)}
+  100%{transform:translateX(-100%)}
+}
+canvas#visualizer{width:100%;height:46px;display:block;margin-top:8px;background:#000;border-radius:2px}
+
+/* ===== Transporte ===== */
+.transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.btn3d{
+  background:linear-gradient(180deg,#5a6478,#2b3040);
+  border:2px solid;
+  border-color:#7c879c #0d0f14 #0d0f14 #7c879c;
+  color:#eef1f8;
+  padding:7px 11px;
+  cursor:pointer;
+  font-family:'VT323',monospace;
+  font-size:18px;
+  border-radius:3px;
+  min-width:38px;
+  line-height:1;
+}
+.btn3d:hover{filter:brightness(1.15)}
+.btn3d:active{
+  border-color:#0d0f14 #7c879c #7c879c #0d0f14;
+  transform:translateY(1px);
+}
+.btn3d.activo{background:linear-gradient(180deg,var(--azul1),var(--azul2));color:#fff}
+.vol-wrap{display:flex;align-items:center;gap:6px;margin-left:auto;color:var(--verde);font-size:15px}
+.vol-wrap input[type=range]{accent-color:var(--verde);width:90px}
+
+.speed-row,.seq-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:15px;color:#c7d0dd;margin-bottom:8px}
+.speed-row .btn3d,.seq-row .btn3d{font-size:14px;padding:4px 9px}
+
+.seq-row #seqEstado{font-size:15px}
+.seq-si{color:var(--verde);font-weight:bold}
+.seq-no{color:#8a95a5}
+.seq-link{color:var(--ambar);text-decoration:underline;cursor:pointer}
+
+/* ===== Observación ===== */
+.win-obs .win-body{
+  background:#0c0e13;
+  color:#d7e2f0;
+  font-size:18px;
+  line-height:1.4;
+  min-height:20px;
+}
+
+/* ===== Playlist ===== */
+#buscador{
+  width:100%;
+  padding:8px 10px;
+  margin-bottom:10px;
+  background:#04140a;
+  border:2px solid #000;
+  border-radius:3px;
+  color:var(--verde);
+  font-family:'VT323',monospace;
+  font-size:18px;
+  box-shadow:inset 0 0 8px #000;
+}
+#buscador::placeholder{color:#2f7a4a}
+.playlist-scroll{
+  max-height:300px;
+  overflow-y:auto;
+  background:#04140a;
+  border:2px solid #000;
+  border-radius:3px;
+  box-shadow:inset 0 0 8px #000;
+}
+.playlist-scroll::-webkit-scrollbar{width:10px}
+.playlist-scroll::-webkit-scrollbar-track{background:#020a05}
+.playlist-scroll::-webkit-scrollbar-thumb{background:#2f7a4a;border-radius:5px}
+
+.item-cancion{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:7px 10px;
+  font-size:17px;
+  color:#9fe8b5;
+  cursor:pointer;
+  border-bottom:1px solid #0a2413;
+}
+.item-cancion:hover{background:#0a2413}
+.item-cancion.activa{background:linear-gradient(90deg,var(--azul1),var(--azul2));color:#fff}
+.item-cancion .num{color:var(--ambar);width:26px;flex:none;text-align:right}
+.item-cancion.activa .num{color:#fff}
+.item-cancion .txt{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.playlist-footer{display:flex;justify-content:space-between;padding-top:8px;font-size:14px;color:#7f8ba0}
+
+.estado-carga{padding:20px;text-align:center;color:#8a95a5;font-size:16px}
+
+@media(max-width:480px){
+  .lcd-marquee span{font-size:17px}
+  .vol-wrap{margin-left:0;width:100%;order:99}
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ===== Ventana: Reproductor ===== -->
+  <div class="win win-player">
+    <div class="win-title">
+      <span>🎧 REPRODUCTOR · ALABANZA FILADELFIA</span>
+      <span class="dots"><span></span><span></span><span></span></span>
+    </div>
+    <div class="win-body">
+
+      <div class="lcd">
+        <div class="lcd-row">
+          <span id="lcdEstado">■ DETENIDO</span>
+          <span id="lcdTiempo">00:00 / 00:00</span>
+        </div>
+        <div class="lcd-marquee" id="lcdMarquee"><span id="lcdTitulo">Elige una canción de la lista...</span></div>
+        <canvas id="visualizer" width="500" height="46"></canvas>
+      </div>
+
+      <div class="transport">
+        <button class="btn3d" id="btnPrev" title="Anterior">⏮</button>
+        <button class="btn3d" id="btnPlay" title="Reproducir">▶</button>
+        <button class="btn3d" id="btnPause" title="Pausar">⏸</button>
+        <button class="btn3d" id="btnStop" title="Detener">⏹</button>
+        <button class="btn3d" id="btnNext" title="Siguiente">⏭</button>
+        <div class="vol-wrap">
+          🔊<input type="range" id="volumen" min="0" max="100" value="80">
+        </div>
+      </div>
+
+      <div class="speed-row">
+        <span>VELOCIDAD:</span>
+        <button class="btn3d" data-speed="0.75">0.75×</button>
+        <button class="btn3d activo" data-speed="1">1×</button>
+        <button class="btn3d" data-speed="1.25">1.25×</button>
+        <button class="btn3d" data-speed="1.5">1.5×</button>
+        <button class="btn3d" data-speed="2">2×</button>
+      </div>
+
+      <div class="seq-row">
+        <button class="btn3d" id="btnSecuencia">🔎 Verificar secuencia</button>
+        <span id="seqEstado">Elige una canción primero</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== Ventana: Observación ===== -->
+  <div class="win win-obs">
+    <div class="win-title">
+      <span>📝 OBSERVACIÓN</span>
+      <span class="dots"><span></span><span></span><span></span></span>
+    </div>
+    <div class="win-body" id="obsTexto">Elige una canción de la lista para ver su observación.</div>
+  </div>
+
+  <!-- ===== Ventana: Playlist ===== -->
+  <div class="win win-playlist">
+    <div class="win-title">
+      <span>📻 PLAYLIST</span>
+      <span class="dots"><span></span><span></span><span></span></span>
+    </div>
+    <div class="win-body">
+      <input type="text" id="buscador" placeholder="🔍 Buscar canción...">
+      <div class="playlist-scroll" id="listaCanciones">
+        <div class="estado-carga">Cargando canciones...</div>
+      </div>
+      <div class="playlist-footer">
+        <span id="contador"></span>
+        <span id="indiceActual"></span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRgCDbPXxAAo1hNZG09m3gziQCap259U1hsgBvJgCd3xgZ5mxfb-HnaXufZsweBMCcdIVHsYsONF1pg/pub?gid=662467038&single=true&output=csv";
+
+/* Confirmado directamente desde el backend real de Secuencias (Code.gs):
+ * las secuencias viven en Secuencias/<nombre>/ dentro del mismo bucket,
+ * servidas por este mismo puente de Cloudflare. El backend mantiene un
+ * índice general con todas las secuencias que existen. */
+const B2_PUBLIC_BASE = "https://filadelfia-audio.jrivera-musico.workers.dev/";
+const SECUENCIAS_INDEX_URL = B2_PUBLIC_BASE + "Secuencias/index-secuencia.json";
+const DAW_PORTAL_URL = "https://casparorivera.github.io/Filadelfia---Multitrack-DAW/";
+
+function normalizarClave(s){
+  return String(s||"")
+    .replace(/^\ufeff/,"")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toLowerCase().replace(/[^a-z0-9]/g,"");
+}
+
+function parseCSV(text){
+  const filas=[]; let fila=[], celda="", comillas=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i], n=text[i+1];
+    if(c === '"'){
+      if(comillas && n === '"'){ celda+='"'; i++; }
+      else comillas=!comillas;
+    } else if(c === "," && !comillas){
+      fila.push(celda); celda="";
+    } else if((c === "\n" || c === "\r") && !comillas){
+      if(c === "\r" && n === "\n") i++;
+      fila.push(celda); celda="";
+      if(fila.some(x=>String(x).trim()!=="")) filas.push(fila);
+      fila=[];
+    } else celda+=c;
+  }
+  if(celda!=="" || fila.length){ fila.push(celda); if(fila.some(x=>String(x).trim()!=="")) filas.push(fila); }
+  if(!filas.length) return [];
+
+  const encabezados=filas[0].map(normalizarClave);
+  const buscar=(...nombres)=>{
+    for(const nombre of nombres){
+      const i=encabezados.indexOf(normalizarClave(nombre));
+      if(i>=0) return i;
+    }
+    return -1;
+  };
+
+  const it=buscar("Titulo","Título");
+  const ie=buscar("Enlace","Link","URL");
+  const io=buscar("Observacion","Observación");
+
+  if(it<0) throw new Error("No se encontró la columna Título.");
+  return filas.slice(1).map(f=>({
+    titulo:String(f[it]||"").trim(),
+    enlace:ie>=0?String(f[ie]||"").trim():"",
+    observacion:io>=0?String(f[io]||"").trim():""
+  })).filter(x=>x.titulo);
+}
+
+function esc(s){
+  return String(s||"").replace(/[&<>"']/g,m=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  })[m]);
+}
+
+function normalizarBusqueda(s){
+  return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+}
+
+/* ================= Estado del reproductor ================= */
+let canciones=[];
+let indiceActual=-1;
+const audio=new Audio();
+audio.crossOrigin="anonymous";
+audio.preload="none";
+
+let audioCtx=null, analyser=null, fuente=null, datos=null;
+
+function iniciarAnalizador(){
+  if(audioCtx) return;
+  try{
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    fuente=audioCtx.createMediaElementSource(audio);
+    analyser=audioCtx.createAnalyser();
+    analyser.fftSize=64;
+    fuente.connect(analyser);
+    analyser.connect(audioCtx.destination);
+    datos=new Uint8Array(analyser.frequencyBinCount);
+    requestAnimationFrame(dibujarVisualizador);
+  }catch(e){
+    console.warn("Visualizador no disponible (posible restricción CORS del audio):",e);
+  }
+}
+
+function dibujarVisualizador(){
+  requestAnimationFrame(dibujarVisualizador);
+  const canvas=document.getElementById("visualizer");
+  const ctx=canvas.getContext("2d");
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(!analyser) return;
+  analyser.getByteFrequencyData(datos);
+  const anchoBarra=canvas.width/datos.length;
+  for(let i=0;i<datos.length;i++){
+    const v=datos[i]/255;
+    const alto=v*canvas.height;
+    ctx.fillStyle = v>0.8 ? "#ff5050" : (v>0.45 ? "#ffb020" : "#39ff6a");
+    ctx.fillRect(i*anchoBarra, canvas.height-alto, anchoBarra-2, alto);
+  }
+}
+
+function formatoTiempo(seg){
+  if(!isFinite(seg)) return "00:00";
+  const m=Math.floor(seg/60), s=Math.floor(seg%60);
+  return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+}
+
+function actualizarLCDTiempo(){
+  document.getElementById("lcdTiempo").textContent =
+    formatoTiempo(audio.currentTime)+" / "+formatoTiempo(audio.duration);
+}
+
+function activarMarquee(){
+  const contenedor=document.getElementById("lcdMarquee");
+  const span=document.getElementById("lcdTitulo");
+  contenedor.classList.remove("scroll");
+  // Solo se anima si el texto es más ancho que la pantalla LCD.
+  requestAnimationFrame(()=>{
+    if(span.scrollWidth > contenedor.clientWidth){
+      contenedor.classList.add("scroll");
+    }
+  });
+}
+
+function renderPlaylist(filtro){
+  const cont=document.getElementById("listaCanciones");
+  cont.innerHTML="";
+  const filtroNorm=normalizarBusqueda(filtro||"");
+
+  let visibles=0;
+  canciones.forEach((c,i)=>{
+    if(filtroNorm && !normalizarBusqueda(c.titulo).includes(filtroNorm)) return;
+    visibles++;
+    const div=document.createElement("div");
+    div.className="item-cancion"+(i===indiceActual?" activa":"");
+    div.innerHTML=`<span class="num">${i+1}.</span><span class="txt">${esc(c.titulo)}</span>`;
+    div.onclick=()=>cargarCancion(i,true);
+    cont.appendChild(div);
+  });
+
+  document.getElementById("contador").textContent = visibles+" canción(es)";
+  if(!visibles){
+    cont.innerHTML='<div class="estado-carga">No se encontró ninguna canción.</div>';
+  }
+}
+
+function cargarCancion(i, reproducir){
+  if(i<0 || i>=canciones.length) return;
+  indiceActual=i;
+  const c=canciones[i];
+
+  audio.src=c.enlace;
+  document.getElementById("lcdTitulo").textContent=c.titulo;
+  activarMarquee();
+  document.getElementById("obsTexto").textContent = c.observacion || "Esta canción no tiene observación registrada.";
+  document.getElementById("indiceActual").textContent="Sonando: "+(i+1)+" / "+canciones.length;
+  document.getElementById("seqEstado").textContent="Sin verificar";
+  document.getElementById("seqEstado").className="";
+
+  renderPlaylist(document.getElementById("buscador").value);
+
+  if(reproducir){
+    reproducirAhora();
+  }
+}
+
+function reproducirAhora(){
+  if(indiceActual<0){
+    if(canciones.length) cargarCancion(0,true);
+    return;
+  }
+  iniciarAnalizador();
+  if(audioCtx && audioCtx.state==="suspended") audioCtx.resume();
+  audio.play().catch(e=>console.warn("No se pudo reproducir:",e));
+}
+
+/* ================= Controles ================= */
+document.getElementById("btnPlay").onclick=reproducirAhora;
+document.getElementById("btnPause").onclick=()=>audio.pause();
+document.getElementById("btnStop").onclick=()=>{ audio.pause(); audio.currentTime=0; };
+document.getElementById("btnPrev").onclick=()=>{
+  if(!canciones.length) return;
+  cargarCancion((indiceActual-1+canciones.length)%canciones.length, true);
+};
+document.getElementById("btnNext").onclick=()=>{
+  if(!canciones.length) return;
+  cargarCancion((indiceActual+1)%canciones.length, true);
+};
+document.getElementById("volumen").oninput=(e)=>{ audio.volume=e.target.value/100; };
+audio.volume=0.8;
+
+document.querySelectorAll("[data-speed]").forEach(b=>b.addEventListener("click",()=>{
+  audio.playbackRate=Number(b.dataset.speed);
+  document.querySelectorAll("[data-speed]").forEach(x=>x.classList.remove("activo"));
+  b.classList.add("activo");
+}));
+
+document.getElementById("buscador").addEventListener("input",(e)=>renderPlaylist(e.target.value));
+
+audio.addEventListener("timeupdate",actualizarLCDTiempo);
+audio.addEventListener("loadedmetadata",actualizarLCDTiempo);
+audio.addEventListener("play",()=>{ document.getElementById("lcdEstado").textContent="▶ REPRODUCIENDO"; });
+audio.addEventListener("pause",()=>{ document.getElementById("lcdEstado").textContent="⏸ PAUSADO"; });
+audio.addEventListener("ended",()=>{
+  document.getElementById("lcdEstado").textContent="■ DETENIDO";
+  if(canciones.length) cargarCancion((indiceActual+1)%canciones.length, true);
+});
+
+/* ================= Verificar secuencia =================
+ * Consulta el índice general de secuencias (Secuencias/index-secuencia.json)
+ * y compara el nombre de cada secuencia contra el título de la canción.
+ * Se guarda en caché para no volver a pedirlo en cada clic. */
+let indiceSecuenciasCache=null;
+
+async function obtenerIndiceSecuencias(){
+  if(indiceSecuenciasCache) return indiceSecuenciasCache;
+  const r=await fetch(SECUENCIAS_INDEX_URL+"?_="+Date.now(),{cache:"no-store"});
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  const data=await r.json();
+  indiceSecuenciasCache=Array.isArray(data.sequences)?data.sequences:[];
+  return indiceSecuenciasCache;
+}
+
+function normalizarNombre(s){
+  return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+}
+
+document.getElementById("btnSecuencia").onclick=async ()=>{
+  if(indiceActual<0){
+    alert("Primero elige una canción de la lista.");
+    return;
+  }
+  const c=canciones[indiceActual];
+  const estado=document.getElementById("seqEstado");
+  estado.textContent="Buscando...";
+  estado.className="";
+
+  try{
+    const lista=await obtenerIndiceSecuencias();
+    const encontrada=lista.find(s=>normalizarNombre(s.name||s.folder)===normalizarNombre(c.titulo));
+
+    if(encontrada){
+      const folder=encontrada.folder || encontrada.name;
+      const urlDirecta=DAW_PORTAL_URL+"?folder="+encodeURIComponent(folder);
+      estado.className="seq-si";
+      estado.innerHTML='✅ Hay secuencia disponible — <span class="seq-link" onclick="window.open(\''+urlDirecta+'\',\'_blank\')">estudiar esta canción en el portal</span>';
+    } else {
+      estado.className="seq-no";
+      estado.textContent="❌ No hay secuencia todavía para esta canción.";
+    }
+  }catch(e){
+    estado.className="seq-no";
+    estado.textContent="No se pudo consultar el índice de secuencias.";
+    console.warn(e);
+  }
+};
+
+/* ================= Carga inicial ================= */
+async function cargar(){
+  const cont=document.getElementById("listaCanciones");
+  try{
+    const r=await fetch(CSV_URL+"&_="+Date.now(),{cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    canciones=parseCSV(await r.text());
+    if(!canciones.length) throw new Error("CSV vacío");
+  }catch(e){
+    console.error("No se pudieron cargar las canciones:",e);
+    cont.innerHTML='<div class="estado-carga">No se pudieron cargar las canciones. Intenta recargar la página.</div>';
+    return;
+  }
+  renderPlaylist("");
+}
+
+cargar();
+</script>
+</body>
+</html>
