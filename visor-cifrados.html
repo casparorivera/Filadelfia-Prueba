@@ -642,26 +642,72 @@ searchInput.addEventListener('input', () => {
   searchTimer = setTimeout(() => runSearch(term), 350);
 });
 
+const PANEL_URL = 'https://script.google.com/macros/s/AKfycby8Gxbi4TbhaQhud-BmMgaOHw6Jn1tPne6zoIkqYuSB9BwGRFbbxWV3K_wqdOoKvMQk/exec';
+
 async function runSearch(term){
   try{
     const res = await fetch(`${APPS_SCRIPT_URL}?action=pro_search&q=${encodeURIComponent(term)}`);
     const data = await res.json();
-    if(data.error){ searchStatus.textContent = data.error; searchResults.style.display = 'none'; return; }
-    if(!data.results || data.results.length === 0){ searchStatus.textContent = 'sin resultados'; searchResults.style.display = 'none'; return; }
-    searchStatus.textContent = `${data.results.length} resultado(s)`;
-    searchResults.innerHTML = '';
-    data.results.forEach(r => {
-      const item = document.createElement('div');
-      item.className = 'result-item';
-      item.textContent = r.title + (r.key ? ` — ${r.key}` : '');
-      item.addEventListener('click', () => openSong(r.id));
-      searchResults.appendChild(item);
-    });
-    searchResults.style.display = 'block';
+
+    if(!data.error && data.results && data.results.length > 0){
+      mostrarResultadosProSearch(data.results);
+      return;
+    }
+
+    // Nada en Cifra Pro (o vino con error) — se intenta como respaldo en Drive.
+    await buscarEnDriveComoRespaldo(term);
   }catch(e){
-    searchStatus.textContent = 'no se pudo conectar con el backend';
-    searchResults.style.display = 'none';
+    try{
+      await buscarEnDriveComoRespaldo(term);
+    }catch(e2){
+      searchStatus.textContent = 'no se pudo conectar con el backend';
+      searchResults.style.display = 'none';
+    }
   }
+}
+
+function mostrarResultadosProSearch(results){
+  searchStatus.textContent = `${results.length} resultado(s)`;
+  searchResults.innerHTML = '';
+  results.forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'result-item';
+    item.textContent = r.title + (r.key ? ` — ${r.key}` : '');
+    item.addEventListener('click', () => openSong(r.id));
+    searchResults.appendChild(item);
+  });
+  searchResults.style.display = 'block';
+}
+
+async function buscarEnDriveComoRespaldo(term){
+  if(PANEL_URL.indexOf('PENDIENTE') === 0){
+    searchStatus.textContent = 'sin resultados';
+    searchResults.style.display = 'none';
+    return;
+  }
+
+  searchStatus.textContent = 'no está en Cifra Pro — buscando en Drive…';
+
+  const res = await fetch(`${PANEL_URL}?accion=buscarChartsDrive&q=${encodeURIComponent(term)}`);
+  const data = await res.json();
+  const resultados = data.resultados || [];
+
+  if(!resultados.length){
+    searchStatus.textContent = 'sin resultados (ni en Cifra Pro ni en Drive)';
+    searchResults.style.display = 'none';
+    return;
+  }
+
+  searchStatus.textContent = `${resultados.length} resultado(s) en Drive`;
+  searchResults.innerHTML = '';
+  resultados.forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'result-item';
+    item.innerHTML = `${escapeHtml(r.nombre)} <span style="opacity:.6;font-size:.85em">(Drive)</span>`;
+    item.addEventListener('click', () => window.open(r.url, '_blank', 'noopener'));
+    searchResults.appendChild(item);
+  });
+  searchResults.style.display = 'block';
 }
 
 async function openSong(id){
