@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timoteo IA</title>
+<style>
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:Arial,Helvetica,sans-serif;
+    background:#eef2f7;
+    color:#1a2233;
+    display:flex;
+    justify-content:center;
+    padding:24px 14px;
+  }
+  .shell{width:100%;max-width:640px;display:flex;flex-direction:column;height:calc(100vh - 48px)}
+  .banner{width:100%;border-radius:14px 14px 0 0;display:block;box-shadow:0 4px 14px #0002}
+  header{
+    background:linear-gradient(120deg,#123a68,#2f6fc0);
+    color:#fff;
+    padding:14px 22px;
+    box-shadow:0 4px 14px #0002;
+  }
+  header h1{margin:0;font-size:22px}
+  header p{margin:4px 0 0;font-size:13px;opacity:.85}
+  .chip-fase{
+    display:inline-block;
+    margin-top:0;
+    background:#ffffff22;
+    padding:4px 10px;
+    border-radius:20px;
+    font-size:11px;
+    letter-spacing:.5px;
+  }
+  .barra-pruebas{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .barra-pruebas button{
+    background:#ffffff22;
+    color:#fff;
+    border:1px solid #ffffff55;
+    border-radius:20px;
+    padding:6px 12px;
+    font-size:12px;
+    cursor:pointer;
+  }
+  .barra-pruebas button:hover{background:#ffffff3a}
+
+  .nombre-embebido{display:flex;gap:8px;margin-top:10px}
+  .nombre-embebido input{flex:1;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;font-family:inherit}
+  .nombre-embebido button{background:#2f6fc0;color:#fff;border:none;border-radius:8px;padding:0 16px;font-size:16px;cursor:pointer}
+  .nota-embebida{font-size:11px;color:#8a95a5;margin-top:8px}
+
+  .mensajes{
+    flex:1;
+    background:#fff;
+    padding:18px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    border-left:1px solid #dfe5ec;
+    border-right:1px solid #dfe5ec;
+  }
+  .burbuja{max-width:80%;padding:11px 15px;border-radius:16px;line-height:1.45;font-size:15px;white-space:pre-wrap}
+  .burbuja.usuario{align-self:flex-end;background:#2f6fc0;color:#fff;border-bottom-right-radius:4px}
+  .burbuja.asistente{align-self:flex-start;background:#f0f3f8;color:#1a2233;border-bottom-left-radius:4px}
+  .burbuja.sistema{align-self:center;background:#fff4d6;color:#7a5900;font-size:13px;text-align:center}
+  .burbuja.error{align-self:center;background:#fdecec;color:#9b1c1c;font-size:13px;text-align:center}
+  .escribiendo{align-self:flex-start;color:#8a95a5;font-size:13px;font-style:italic;padding-left:4px}
+
+  footer{
+    background:#fff;border:1px solid #dfe5ec;border-top:none;
+    border-radius:0 0 14px 14px;padding:14px;display:flex;gap:10px;box-shadow:0 4px 14px #0002;
+  }
+  #entrada{flex:1;padding:12px 14px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px;resize:none;max-height:100px}
+  #btnEnviar{background:#2f6fc0;color:#fff;border:none;border-radius:10px;padding:0 20px;font-size:15px;font-weight:bold;cursor:pointer}
+  #btnEnviar:disabled{opacity:.5;cursor:not-allowed}
+
+  #btnMic{background:#f0f3f8;color:#2f6fc0;border:1px solid #cbd5e1;border-radius:10px;width:46px;font-size:19px;cursor:pointer;flex:none}
+  #btnMic.grabando{background:#e0563f;color:#fff;border-color:#e0563f;animation:pulso 1s infinite}
+  @keyframes pulso{0%,100%{opacity:1}50%{opacity:.6}}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <img class="banner" src="timoteo-banner.png" alt="Timoteo IA — Ministerio de Alabanza Filadelfia Central">
+  <header>
+    <span class="chip-fase">FASE 1: versículos, ánimo y ayuda para navegar el sitio</span>
+    <div class="barra-pruebas">
+      <button type="button" onclick="probarConexion()">🔌 Probar conexión</button>
+      <button type="button" onclick="limpiarConversacion()">🗑️ Nueva conversación</button>
+      <button type="button" id="btnVoz" onclick="alternarLecturaVoz()">🔊 Leer respuestas: ON</button>
+    </div>
+  </header>
+
+  <div class="mensajes" id="mensajes"></div>
+
+  <footer>
+    <button id="btnMic" type="button" onclick="alternarMicrofono()" title="Hablar">🎤</button>
+    <textarea id="entrada" rows="1" placeholder="Escribe tu mensaje..." onkeydown="manejarEnter(event)"></textarea>
+    <button id="btnEnviar" type="button" onclick="enviarMensaje()">Enviar</button>
+  </footer>
+</div>
+
+<script>
+  // ⚠️ PENDIENTE: reemplaza esto por la URL real de tu Worker una vez
+  // lo publiques (te la da Cloudflare al crearlo, algo como
+  // "https://timoteo-ia.tu-usuario.workers.dev").
+  const WORKER_URL = 'https://timoteo-ia.jrivera-musico.workers.dev';
+
+  let historial = [];
+  let lecturaVozActiva = true;
+  let nombreUsuario = '';
+
+  try {
+    nombreUsuario = localStorage.getItem('timoteoNombre') || '';
+  } catch (e) { /* localStorage no disponible, no pasa nada */ }
+
+  document.addEventListener('DOMContentLoaded', iniciarConversacion);
+
+  function iniciarConversacion(){
+    agregarBurbuja('¡Hola! Soy Timoteo, asistente del Ministerio. Estoy para colaborarte en lo que necesites del ministerio, o darte una palabra de fe para comenzar el día.', 'asistente');
+
+    if (nombreUsuario) {
+      agregarBurbuja('¡Qué alegría verte de nuevo, ' + nombreUsuario + '! ¿En qué te ayudo hoy?', 'asistente');
+      precalentarTimoteo();
+    } else {
+      agregarBurbujaPideNombre();
+    }
+  }
+
+  function agregarBurbujaPideNombre(){
+    const cont = document.getElementById('mensajes');
+    const div = document.createElement('div');
+    div.className = 'burbuja asistente';
+    div.id = 'burbujaPideNombre';
+    div.innerHTML =
+      '¿Con quién tengo el gusto de hablar?' +
+      '<div class="nombre-embebido">' +
+        '<input type="text" id="campoNombre" placeholder="Escribe tu nombre">' +
+        '<button type="button" onclick="confirmarNombreEmbebido()">➜</button>' +
+      '</div>' +
+      '<div class="nota-embebida">Tu conversación puede ser revisada por el equipo del ministerio para atenderte mejor.</div>';
+    cont.appendChild(div);
+    cont.scrollTop = cont.scrollHeight;
+
+    const campo = document.getElementById('campoNombre');
+    campo.focus();
+    campo.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter') { ev.preventDefault(); confirmarNombreEmbebido(); }
+    });
+  }
+
+  function confirmarNombreEmbebido(){
+    const campo = document.getElementById('campoNombre');
+    const nombre = campo ? campo.value.trim() : '';
+    const contenedor = document.getElementById('burbujaPideNombre');
+
+    if (nombre) {
+      nombreUsuario = nombre;
+      try { localStorage.setItem('timoteoNombre', nombreUsuario); } catch (e) {}
+      if (contenedor) contenedor.innerHTML = '¡Un gusto, ' + escaparHTML(nombreUsuario) + '! 😊';
+      precalentarTimoteo();
+    } else if (contenedor) {
+      contenedor.remove(); // no quiso decir su nombre — no pasa nada, se sigue igual
+    }
+
+    document.getElementById('entrada').focus();
+  }
+
+  let yaPrecalentado = false;
+
+  async function precalentarTimoteo(){
+    if (yaPrecalentado) return;
+    yaPrecalentado = true;
+    const aviso = agregarBurbuja('🔄 Preparando a Timoteo para conversar contigo...', 'sistema');
+    try {
+      await fetch(WORKER_URL + '/precalentar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: nombreUsuario })
+      });
+      aviso.textContent = '✅ ¡Listo! Ya puedes escribirle a Timoteo.';
+    } catch (e) {
+      aviso.remove(); // si falla, simplemente no se muestra nada — no es grave, solo era para ir más rápido
+      console.warn('No se pudo precalentar:', e);
+    }
+  }
+
+  function escaparHTML(s){
+    return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  }
+
+  function agregarBurbuja(texto, clase){
+    const cont = document.getElementById('mensajes');
+    const div = document.createElement('div');
+    div.className = 'burbuja ' + clase;
+    div.textContent = texto;
+    cont.appendChild(div);
+    cont.scrollTop = cont.scrollHeight;
+    return div;
+  }
+
+  function mostrarEscribiendo(){
+    const cont = document.getElementById('mensajes');
+    const div = document.createElement('div');
+    div.className = 'escribiendo';
+    div.id = 'indicadorEscribiendo';
+    div.textContent = 'Timoteo está escribiendo...';
+    cont.appendChild(div);
+    cont.scrollTop = cont.scrollHeight;
+  }
+  function quitarEscribiendo(){
+    const el = document.getElementById('indicadorEscribiendo');
+    if (el) el.remove();
+  }
+
+  function manejarEnter(ev){
+    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); enviarMensaje(); }
+  }
+
+  async function enviarMensaje(){
+    const campo = document.getElementById('entrada');
+    const texto = campo.value.trim();
+    if (!texto) return;
+
+    agregarBurbuja(texto, 'usuario');
+    historial.push({ rol: 'usuario', texto: texto });
+    campo.value = '';
+
+    const boton = document.getElementById('btnEnviar');
+    boton.disabled = true;
+    mostrarEscribiendo();
+
+    try {
+      const r = await fetch(WORKER_URL + '/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ historial, nombre: nombreUsuario })
+      });
+      const datos = await r.json();
+      quitarEscribiendo();
+
+      if (!r.ok || !datos.respuesta) {
+        const texto = datos.error || ('Error ' + r.status);
+        const amigable = /50[0-9]|429|UNAVAILABLE|overload|high demand/i.test(texto)
+          ? 'Timoteo está recibiendo demasiadas consultas en este momento. Espera unos segundos e inténtalo de nuevo.'
+          : '❌ ' + texto;
+        agregarBurbuja(amigable, 'error');
+      } else {
+        agregarBurbuja(datos.respuesta, 'asistente');
+        historial.push({ rol: 'asistente', texto: datos.respuesta });
+        leerEnVozAlta(datos.respuesta);
+      }
+    } catch (e) {
+      quitarEscribiendo();
+      agregarBurbuja('❌ No se pudo conectar con Timoteo. Revisa tu conexión.', 'error');
+      console.error(e);
+    }
+    boton.disabled = false;
+  }
+
+  async function probarConexion(){
+    agregarBurbuja('Probando conexión...', 'sistema');
+    try {
+      const r = await fetch(WORKER_URL + '/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ historial: [{ rol: 'usuario', texto: 'Responde únicamente con la palabra: OK' }] })
+      });
+      const datos = await r.json();
+      if (r.ok && datos.respuesta) agregarBurbuja('✅ Conexión correcta. Respuesta de prueba: "' + datos.respuesta + '"', 'sistema');
+      else agregarBurbuja('❌ ' + (datos.error || ('Error ' + r.status)), 'error');
+    } catch (e) {
+      agregarBurbuja('❌ No se pudo conectar con el Worker: ' + e.message, 'error');
+    }
+  }
+
+  function limpiarConversacion(){
+    historial = [];
+    const saludo = nombreUsuario ? ('¡Hola de nuevo, ' + escaparHTML(nombreUsuario) + '! ¿En qué te ayudo?') : '¡Hola de nuevo! ¿En qué te ayudo?';
+    document.getElementById('mensajes').innerHTML = '<div class="burbuja asistente">' + saludo + '</div>';
+  }
+
+  /* ================= Reconocimiento de voz (hablarle a Timoteo) ================= */
+  const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let reconocedor = null;
+  let grabando = false;
+
+  if (SpeechRecognitionAPI) {
+    reconocedor = new SpeechRecognitionAPI();
+    reconocedor.lang = 'es-CO';
+    reconocedor.interimResults = false;
+    reconocedor.maxAlternatives = 1;
+    reconocedor.onresult = (ev) => {
+      document.getElementById('entrada').value = ev.results[0][0].transcript;
+      enviarMensaje();
+    };
+    reconocedor.onerror = () => detenerGrabacion();
+    reconocedor.onend = () => detenerGrabacion();
+  } else {
+    document.getElementById('btnMic').style.display = 'none';
+  }
+
+  function alternarMicrofono(){
+    if (!reconocedor) return;
+    if (grabando) { reconocedor.stop(); return; }
+    try {
+      reconocedor.start();
+      grabando = true;
+      document.getElementById('btnMic').classList.add('grabando');
+    } catch (e) { console.warn('No se pudo iniciar el micrófono:', e); }
+  }
+  function detenerGrabacion(){
+    grabando = false;
+    document.getElementById('btnMic').classList.remove('grabando');
+  }
+
+  /* ================= Voz de salida: Gemini TTS (natural), con reserva al navegador ================= */
+  function alternarLecturaVoz(){
+    lecturaVozActiva = !lecturaVozActiva;
+    document.getElementById('btnVoz').textContent = lecturaVozActiva ? '🔊 Leer respuestas: ON' : '🔇 Leer respuestas: OFF';
+    if (!lecturaVozActiva) {
+      speechSynthesis.cancel();
+      const a = document.getElementById('audioTimoteo');
+      if (a) a.pause();
+    }
+  }
+
+  /** Convierte el PCM crudo de Gemini (16 bits, mono) en un WAV reproducible. */
+  function pcmABlobWav(base64Pcm, sampleRate){
+    const binario = atob(base64Pcm);
+    const pcmBytes = new Uint8Array(binario.length);
+    for (let i = 0; i < binario.length; i++) pcmBytes[i] = binario.charCodeAt(i);
+
+    const numCanales = 1, bitsPorMuestra = 16;
+    const byteRate = sampleRate * numCanales * bitsPorMuestra / 8;
+    const blockAlign = numCanales * bitsPorMuestra / 8;
+    const buffer = new ArrayBuffer(44 + pcmBytes.length);
+    const view = new DataView(buffer);
+
+    function escribirTexto(offset, texto){ for (let i=0;i<texto.length;i++) view.setUint8(offset+i, texto.charCodeAt(i)); }
+
+    escribirTexto(0,'RIFF'); view.setUint32(4, 36+pcmBytes.length, true); escribirTexto(8,'WAVE');
+    escribirTexto(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true);
+    view.setUint16(22,numCanales,true); view.setUint32(24,sampleRate,true);
+    view.setUint32(28,byteRate,true); view.setUint16(32,blockAlign,true); view.setUint16(34,bitsPorMuestra,true);
+    escribirTexto(36,'data'); view.setUint32(40,pcmBytes.length,true);
+    new Uint8Array(buffer,44).set(pcmBytes);
+
+    return new Blob([buffer], { type: 'audio/wav' });
+  }
+
+  function leerConVozDelNavegador(texto){
+    if (!window.speechSynthesis) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(texto);
+    u.lang = 'es-CO';
+    speechSynthesis.speak(u);
+  }
+
+  /** Divide el texto en frases, cortando después de cada . ! o ? seguido de espacio. */
+  function esperarMs(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
+
+  /** Reproduce una URL de audio y espera a que termine antes de continuar. */
+  function reproducirYEsperar(url){
+    return new Promise(resolve => {
+      let audio = document.getElementById('audioTimoteo');
+      if (!audio) {
+        audio = document.createElement('audio');
+        audio.id = 'audioTimoteo';
+        audio.style.display = 'none';
+        document.body.appendChild(audio);
+      }
+      audio.onended = resolve;
+      audio.onerror = resolve;
+      audio.src = url;
+      audio.play().catch(resolve);
+    });
+  }
+
+  /**
+   * Una sola petición de voz por respuesta completa. Se probó pedir varias
+   * frases en paralelo para que sonara más rápido, pero el modelo de voz de
+   * Gemini (todavía "preview") tiene un límite de solicitudes por minuto
+   * bastante bajo — pedir varias a la vez las hacía fallar casi todas con
+   * error 429. Una sola petición, con reintentos si hace falta, es más
+   * lenta pero mucho más confiable.
+   */
+  async function leerEnVozAlta(texto){
+    if (!lecturaVozActiva) return;
+
+    for (let intento = 1; intento <= 3; intento++){
+      try {
+        const r = await fetch(WORKER_URL + '/voz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ texto })
+        });
+        const datos = await r.json();
+        if (!r.ok || !datos.audioBase64) throw new Error(datos.error || ('HTTP ' + r.status));
+
+        const blob = pcmABlobWav(datos.audioBase64, datos.sampleRate || 24000);
+        const url = URL.createObjectURL(blob);
+        await reproducirYEsperar(url);
+        return;
+      } catch (e) {
+        console.warn('Intento ' + intento + ' fallido para la voz:', e);
+        if (intento < 3) await esperarMs(1500 * intento);
+      }
+    }
+
+    console.warn('Voz de Gemini no disponible después de varios intentos, usando la del navegador como respaldo.');
+    leerConVozDelNavegador(texto);
+  }
+</script>
+</body>
+</html>
