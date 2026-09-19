@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat Interno — Ministerio de Alabanza Filadelfia</title>
+<style>
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:Arial,Helvetica,sans-serif;
+    background:#eef2f7;
+    color:#1a2233;
+    display:flex;
+    justify-content:center;
+    padding:24px 14px;
+  }
+  .shell{width:100%;max-width:640px;display:flex;flex-direction:column;height:calc(100vh - 48px)}
+  header{
+    background:linear-gradient(120deg,#123a68,#2f6fc0);
+    color:#fff;
+    padding:18px 22px;
+    border-radius:14px 14px 0 0;
+    box-shadow:0 4px 14px #0002;
+  }
+  header h1{margin:0;font-size:22px}
+  header p{margin:4px 0 0;font-size:13px;opacity:.85}
+
+  .aviso-normas{
+    background:#fff8e1;
+    border:1px solid #ffe08a;
+    color:#7a5900;
+    font-size:12.5px;
+    padding:10px 16px;
+    text-align:center;
+  }
+
+  .mensajes{
+    flex:1;
+    background:#fff;
+    padding:18px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    border-left:1px solid #dfe5ec;
+    border-right:1px solid #dfe5ec;
+  }
+  .burbuja{max-width:82%;padding:11px 15px;border-radius:16px;line-height:1.45;font-size:15px;white-space:pre-wrap}
+  .burbuja.propio{align-self:flex-end;background:#2f6fc0;color:#fff;border-bottom-right-radius:4px}
+  .burbuja.otro{align-self:flex-start;background:#f0f3f8;color:#1a2233;border-bottom-left-radius:4px}
+  .burbuja .autor{display:block;font-size:11.5px;font-weight:700;margin-bottom:3px;opacity:.75}
+  .burbuja .hora{display:block;font-size:10px;margin-top:4px;opacity:.6}
+  .burbuja.sistema{align-self:center;background:#eef2f7;color:#5a6b80;font-size:12.5px;text-align:center}
+
+  .nombre-embebido{display:flex;gap:8px;margin-top:10px}
+  .nombre-embebido input{flex:1;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;font-family:inherit}
+  .nombre-embebido button{background:#2f6fc0;color:#fff;border:none;border-radius:8px;padding:0 16px;font-size:16px;cursor:pointer}
+
+  footer{
+    background:#fff;border:1px solid #dfe5ec;border-top:none;
+    border-radius:0 0 14px 14px;padding:14px;display:flex;gap:10px;box-shadow:0 4px 14px #0002;
+  }
+  #entrada{flex:1;padding:12px 14px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px;resize:none;max-height:100px}
+  #btnEnviar{background:#2f6fc0;color:#fff;border:none;border-radius:10px;padding:0 20px;font-size:15px;font-weight:bold;cursor:pointer}
+  #btnEnviar:disabled{opacity:.5;cursor:not-allowed}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <header>
+    <h1>💬 Chat Interno</h1>
+    <p>Ministerio de Alabanza Filadelfia Central</p>
+  </header>
+
+  <div class="aviso-normas">Espacio de comunidad para el ministerio — sé respetuoso con tus hermanos. Los mensajes son visibles para todos y pueden ser moderados por el equipo.</div>
+
+  <div class="mensajes" id="mensajes"></div>
+
+  <footer>
+    <textarea id="entrada" rows="1" placeholder="Escribe tu mensaje..." onkeydown="manejarEnter(event)"></textarea>
+    <button id="btnEnviar" type="button" onclick="enviarMensaje()">Enviar</button>
+  </footer>
+</div>
+
+<script>
+  const WORKER_URL = 'https://script.google.com/macros/s/AKfycbxPwD2mYJxuZoHB7b6zeb_C8vLRMoRVgWoo2eSv7RB77729Fd7UyfQJeds3CDXjicju/exec';
+  const URL_MENSAJES_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSSulidRItGA2VeLAgVVUFpinH6xgSHiCDWsEGmyX8D01ONhaY4HILv2LzT8MJr3PF8bXM_34dOI9TY/pub?gid=1720929281&single=true&output=csv';
+
+  const INTERVALO_ACTUALIZACION_MS = 7000;
+
+  let nombreUsuario = '';
+  let ultimaFilaMostrada = 0;
+
+  try { nombreUsuario = localStorage.getItem('chatInternoNombre') || ''; } catch (e) {}
+
+  function esc(s){
+    return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  }
+
+  function agregarBurbuja(html, clase){
+    const cont = document.getElementById('mensajes');
+    const div = document.createElement('div');
+    div.className = 'burbuja ' + clase;
+    div.innerHTML = html;
+    cont.appendChild(div);
+    cont.scrollTop = cont.scrollHeight;
+    return div;
+  }
+
+  function iniciarConversacion(){
+    if (nombreUsuario) {
+      agregarBurbuja('¡Hola, ' + esc(nombreUsuario) + '! Cargando el chat...', 'sistema');
+    } else {
+      agregarBurbujaPideNombre();
+    }
+    cargarMensajes(true);
+    setInterval(() => cargarMensajes(false), INTERVALO_ACTUALIZACION_MS);
+  }
+
+  function agregarBurbujaPideNombre(){
+    const cont = document.getElementById('mensajes');
+    const div = document.createElement('div');
+    div.className = 'burbuja sistema';
+    div.id = 'burbujaPideNombre';
+    div.innerHTML =
+      '¿Con quién tengo el gusto de hablar?' +
+      '<div class="nombre-embebido">' +
+        '<input type="text" id="campoNombre" placeholder="Escribe tu nombre">' +
+        '<button type="button" onclick="confirmarNombreEmbebido()">➜</button>' +
+      '</div>';
+    cont.appendChild(div);
+    cont.scrollTop = cont.scrollHeight;
+
+    const campo = document.getElementById('campoNombre');
+    campo.focus();
+    campo.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter') { ev.preventDefault(); confirmarNombreEmbebido(); }
+    });
+  }
+
+  function confirmarNombreEmbebido(){
+    const campo = document.getElementById('campoNombre');
+    const nombre = campo ? campo.value.trim() : '';
+    const contenedor = document.getElementById('burbujaPideNombre');
+
+    if (nombre) {
+      nombreUsuario = nombre;
+      try { localStorage.setItem('chatInternoNombre', nombreUsuario); } catch (e) {}
+      if (contenedor) contenedor.remove();
+      agregarBurbuja('¡Un gusto, ' + esc(nombreUsuario) + '! 😊', 'sistema');
+    }
+    document.getElementById('entrada').focus();
+  }
+
+  function parseCSV(text){
+    const rows=[];let row=[],cell="",quoted=false;
+    for(let i=0;i<text.length;i++){const c=text[i];
+      if(c==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++}else quoted=!quoted}
+      else if(c===','&&!quoted){row.push(cell.trim());cell=""}
+      else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell.trim());if(row.some(v=>v!==""))rows.push(row);row=[];cell=""}
+      else cell+=c;
+    }
+    if(cell!==""||row.length){row.push(cell.trim());if(row.some(v=>v!==""))rows.push(row)}
+    if(rows.length<2)return[];
+    const headers=rows.shift().map(v=>v.replace(/^"|"$/g,"").trim().toLowerCase());
+    return rows.map(r=>{const o={};headers.forEach((h,i)=>o[h]=(r[i]||"").replace(/^"|"$/g,"").trim());return o});
+  }
+
+  async function cargarMensajes(esPrimeraVez){
+    if (URL_MENSAJES_CSV.indexOf('PENDIENTE') === 0) return;
+    try{
+      const r = await fetch(URL_MENSAJES_CSV + '&_=' + Date.now(), { cache: 'no-store' });
+      const filas = parseCSV(await r.text());
+
+      if (esPrimeraVez){
+        document.getElementById('mensajes').querySelectorAll('.sistema').forEach(el => {
+          if (el.textContent.includes('Cargando el chat')) el.remove();
+        });
+        filas.forEach((f, i) => mostrarMensaje(f, i));
+        ultimaFilaMostrada = filas.length;
+      } else if (filas.length > ultimaFilaMostrada) {
+        filas.slice(ultimaFilaMostrada).forEach((f, i) => mostrarMensaje(f, ultimaFilaMostrada + i));
+        ultimaFilaMostrada = filas.length;
+      }
+    }catch(e){
+      console.warn('No se pudieron cargar los mensajes:', e);
+    }
+  }
+
+  function mostrarMensaje(f, indice){
+    const nombre = f['nombre'] || '(sin nombre)';
+    const mensaje = f['mensaje'] || '';
+    const hora = (f['fecha'] || '').split(' ')[1] || '';
+    const esPropio = nombreUsuario && nombre === nombreUsuario;
+
+    agregarBurbuja(
+      (esPropio ? '' : '<span class="autor">' + esc(nombre) + '</span>') +
+      esc(mensaje) +
+      (hora ? '<span class="hora">' + esc(hora) + '</span>' : ''),
+      esPropio ? 'propio' : 'otro'
+    );
+  }
+
+  function manejarEnter(ev){
+    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); enviarMensaje(); }
+  }
+
+  async function enviarMensaje(){
+    const campo = document.getElementById('entrada');
+    const texto = campo.value.trim();
+    if (!texto) return;
+
+    if (!nombreUsuario) {
+      alert('Primero dinos tu nombre arriba para poder enviar tu mensaje.');
+      return;
+    }
+
+    const boton = document.getElementById('btnEnviar');
+    boton.disabled = true;
+    campo.value = '';
+
+    try {
+      const r = await fetch(WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'enviarMensaje', nombre: nombreUsuario, mensaje: texto })
+      });
+      const datos = await r.json();
+      if (!r.ok || datos.error) throw new Error(datos.error || ('Error ' + r.status));
+      await cargarMensajes(false);
+    } catch (e) {
+      agregarBurbuja('❌ No se pudo enviar el mensaje: ' + esc(e.message || e), 'sistema');
+    }
+    boton.disabled = false;
+    campo.focus();
+  }
+
+  iniciarConversacion();
+</script>
+</body>
+</html>
